@@ -52,10 +52,9 @@
 (defn- start-polling [ch & fns]
   (go-loop [all-fns fns]
     (when (not-empty all-fns)
-      (let [first-fn-val (-> (polling-fn-ch (first all-fns)) (listen-or-timeout max-wait-time-per-fn) first)]
-        (when first-fn-val
-          (>! ch first-fn-val)
-          (recur (rest all-fns)))))))
+      (when-let [first-fn-value (-> all-fns first polling-fn-ch (listen-or-timeout max-wait-time-per-fn) first)]
+        (>! ch first-fn-value)
+        (recur (rest all-fns))))))
 
 (defn fn-a []
   (<!! (timeout 1500))
