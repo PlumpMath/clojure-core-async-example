@@ -43,18 +43,17 @@
   (let [[temp-ch _] (create-channel)
         max-tries 10]
     (go-loop [i 0]
-      (if-let [v (wait-and-execute f polling-interval)]
-        (>! temp-ch v)
-        (cond
-          (>= i max-tries) (println "Exhausted number of retries.")
-          :else (recur (inc i)))))
+      (when (< i max-tries)
+        (if-let [v (wait-and-execute f polling-interval)]
+          (>! temp-ch v)
+          (recur (inc i)))))
     temp-ch))
 
-(defn- polling-fn [& fns]
-  (fn [ch]
-    (go-loop [all-fns fns]
-      (when-let [first-fn (first all-fns)]
-        (when-let [first-fn-val (first (listen-or-timeout (polling-fn-ch first-fn) max-wait-time-per-fn))]
+(defn- start-polling [ch & fns]
+  (go-loop [all-fns fns]
+    (when (not-empty all-fns)
+      (let [first-fn-val (-> (polling-fn-ch (first all-fns)) (listen-or-timeout max-wait-time-per-fn) first)]
+        (when first-fn-val
           (>! ch first-fn-val)
           (recur (rest all-fns)))))))
 
@@ -68,9 +67,7 @@
 
 (defn start []
   (let [[ch request-id] (create-channel)
-        poller (polling-fn fn-a fn-b)
-        _ (poller ch)
-        ]
+        _ (start-polling ch fn-a fn-b)]
     {:request_id request-id}))
 
 (defn status [request-id]
